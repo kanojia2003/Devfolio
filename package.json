@@ -1,0 +1,18 @@
+{
+  "name": "devfolio",
+  "version": "1.0.0",
+  "description": "A full-stack SaaS-style app that allows developers to create & host portfolio sites from templates.",
+  "main": "index.js",
+  "scripts": {
+    "client": "cd client && npm run dev",
+    "server": "cd server && nodemon index.js",
+    "parser": "cd parser && python app.py",
+    "start": "concurrently \"npm run client\" \"npm run server\" \"npm run parser\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}
