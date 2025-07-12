@@ -1,7 +1,16 @@
-export default function App() {
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import Login from "./pages/Login";
+import ProfileForm from "./pages/ProfileForm";
+
+function App() {
   return (
-    <div className="min-h-screen bg-blue-500 text-white flex items-center justify-center">
-      <h1 className="text-8xl font-bold">Tailwind CSS is working!</h1>
-    </div>
+    <Router>
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/profile" element={<ProfileForm />} />
+      </Routes>
+    </Router>
   );
 }
+
+export default App;
