@@ -1,59 +1,136 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import { auth } from '../firebase';
+import React, { useState } from "react";
+import axios from "axios";
+import { auth } from "../firebase";
 
-export default function ProfileForm() {
-  const [name, setName] = useState('');
-  const [bio, setBio] = useState('');
-  const [loading, setLoading] = useState(false);
+export default function ProfilePage() {
+  const [formData, setFormData] = useState({
+    name: "", email: "", phone: "", github: "", linkedin: "",
+    skills: "", education: "", experience: "", others: ""
+  });
 
-  const handleSubmit = async () => {
-    if (!auth.currentUser) {
-      alert("User not logged in");
-      return;
-    }
-    setLoading(true);
+  const [resumeFile, setResumeFile] = useState(null);
+  const [parsing, setParsing] = useState(false);
+  const [parsedSuccess, setParsedSuccess] = useState(false);
+
+  const handleFileChange = (e) => setResumeFile(e.target.files[0]);
+
+  const handleParseResume = async () => {
+    if (!resumeFile) return alert("Please upload a resume first.");
+
+    const formDataToSend = new FormData();
+    formDataToSend.append("resume", resumeFile);
+
     try {
-      const token = await auth.currentUser.getIdToken();
-      const data = { name, bio };
-      await axios.post("http://localhost:5000/api/profile", data, {
-        headers: { Authorization: `Bearer ${token}` }
+      setParsing(true);
+      const res = await axios.post("http://localhost:7000/parse-resume", formDataToSend, {
+        headers: { "Content-Type": "multipart/form-data" }
       });
-      alert("Profile submitted successfully!");
-      setName('');
-      setBio('');
+
+      const parsed = res.data;
+      setFormData({
+        name: parsed.name || "", email: parsed.email || "", phone: parsed.phone || "",
+        github: parsed.github || "", linkedin: parsed.linkedin || "",
+        skills: parsed.skills?.join(", ") || "", education: parsed.education || "",
+        experience: parsed.experience || "", others: parsed.others || ""
+      });
+
+      setParsedSuccess(true);
+      setTimeout(() => setParsedSuccess(false), 3000);
     } catch (err) {
-      alert("Error submitting profile");
+      console.error(err);
+      alert("Error parsing resume");
     } finally {
-      setLoading(false);
+      setParsing(false);
     }
   };
 
+  const handleChange = (e) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleSubmit = () => {
+    alert("This data would be saved to MongoDB in Phase 3.");
+    console.log("Form Submitted:", formData);
+  };
+
   return (
-    <div className="flex flex-col items-center mt-10 px-4">
-      <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-sm">
-        <h2 className="text-2xl mb-4 font-semibold text-center text-gray-800">Profile Form</h2>
-        <input
-          type="text"
-          value={name}
-          placeholder="Your Name"
-          onChange={e => setName(e.target.value)}
-          className="mb-3 px-4 py-2 w-full border rounded focus:outline-none focus:ring focus:border-blue-500"
-        />
-        <textarea
-          value={bio}
-          placeholder="Short Bio"
-          onChange={e => setBio(e.target.value)}
-          className="mb-3 px-4 py-2 w-full border rounded focus:outline-none focus:ring focus:border-blue-500"
-        />
+    <div className="min-h-screen bg-gray-100 py-10 px-4 flex justify-center">
+      <div className="w-full max-w-4xl bg-white rounded-2xl shadow-xl p-8 space-y-8 animate-fadeIn">
+        <h1 className="text-3xl font-bold text-center text-gray-800 mb-4">
+          Build Your <span className="text-indigo-600">Developer Profile</span>
+        </h1>
+
+        {/* Resume Upload Card */}
+        <div className="border border-dashed border-indigo-400 rounded-lg p-4 bg-indigo-50">
+          <label className="block text-indigo-700 font-semibold mb-2">Upload Resume (.pdf)</label>
+          <div className="flex items-center flex-wrap gap-4">
+            <input
+              type="file"
+              accept=".pdf"
+              onChange={handleFileChange}
+              className="text-sm bg-white border rounded px-3 py-1"
+            />
+            <button
+              onClick={handleParseResume}
+              disabled={parsing || !resumeFile}
+              className="bg-indigo-600 text-white px-4 py-2 rounded shadow hover:bg-indigo-700 transition"
+            >
+              {parsing ? "Parsing..." : "Parse & Autofill"}
+            </button>
+            {parsedSuccess && (
+              <span className="text-green-600 text-sm font-semibold animate-bounce">✔️ Resume Parsed!</span>
+            )}
+          </div>
+        </div>
+
+        {/* Profile Form */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Input label="Full Name" name="name" value={formData.name} onChange={handleChange} />
+          <Input label="Email" name="email" value={formData.email} onChange={handleChange} />
+          <Input label="Phone" name="phone" value={formData.phone} onChange={handleChange} />
+          <Input label="GitHub" name="github" value={formData.github} onChange={handleChange} />
+          <Input label="LinkedIn" name="linkedin" value={formData.linkedin} onChange={handleChange} />
+          <Input label="Skills (comma separated)" name="skills" value={formData.skills} onChange={handleChange} />
+        </div>
+
+        <TextArea label="Education" name="education" value={formData.education} onChange={handleChange} />
+        <TextArea label="Experience" name="experience" value={formData.experience} onChange={handleChange} />
+        <TextArea label="Other Info (Achievements, Awards, etc.)" name="others" value={formData.others} onChange={handleChange} />
+
         <button
           onClick={handleSubmit}
-          disabled={loading}
-          className={`w-full px-4 py-2 bg-green-600 text-white rounded font-semibold shadow hover:scale-[1.03] transition duration-200 ${loading && "opacity-60"}`}
+          className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition"
         >
-          {loading ? "Submitting..." : "Submit Profile"}
+          Save Profile
         </button>
       </div>
     </div>
   );
 }
+
+// Reusable Components
+const Input = ({ label, name, value, onChange }) => (
+  <div>
+    <label className="block text-gray-700 font-medium mb-1">{label}</label>
+    <input
+      type="text"
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+    />
+  </div>
+);
+
+const TextArea = ({ label, name, value, onChange }) => (
+  <div>
+    <label className="block text-gray-700 font-medium mb-1">{label}</label>
+    <textarea
+      name={name}
+      value={value}
+      onChange={onChange}
+      rows={4}
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+    />
+  </div>
+);
