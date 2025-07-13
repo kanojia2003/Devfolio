@@ -10,9 +10,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    // Always sign out on app load to force login every session
-    signOut(auth).then(() => setUser(null));
-    // No need for onAuthStateChanged since we always sign out
+     onAuthStateChanged(auth, setUser);
   }, []);
 
 
