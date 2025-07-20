@@ -1,9 +1,6 @@
 import fitz  # PyMuPDF
 import re
 
-# ---------------------------------------------
-# 1. Extract raw text from resume PDF
-# ---------------------------------------------
 def extract_resume_text(pdf_path):
     text = ""
     with fitz.open(pdf_path) as doc:
@@ -11,110 +8,167 @@ def extract_resume_text(pdf_path):
             text += page.get_text()
     return text
 
-# ---------------------------------------------
-# 2. Section Definitions & Helpers
-# ---------------------------------------------
-SECTION_HEADERS = [
-    "education", "experience", "skills", "projects",
-    "certifications", "achievements", "awards", "languages",
-    "additional information", "computer proficiency",
-    "core competencies", "internships", "co-curricular",
-    "declaration", "others"
-]
+# Expanded headers for robust section detection
+SECTION_HEADERS = {
+    "summary": ["summary", "about me", "profile", "objective"],
+    "education": ["education", "academic background", "qualifications"],
+    "experience": [
+        "experience", "work experience", "professional experience", "employment",
+        "internships", "work history", "professional background"
+    ],
+    "projects": ["projects", "personal projects", "academic projects", "project experience"],
+    "skills": ["skills", "technical skills", "key skills", "core skills"],
+    "certifications": ["certifications", "certificates"],
+    "achievements": ["achievements", "awards", "honors"],
+    "responsibility": [
+        "position of responsibility", "leadership", "roles", "responsibilities", "positions held"
+    ],
+    "extracurricular": ["extra curricular", "activities", "co-curricular", "interests"],
+}
 
-CORE_SECTIONS = ["education", "experience", "skills"]
-OTHER_SECTIONS = [s for s in SECTION_HEADERS if s not in CORE_SECTIONS]
+ALL_SECTION_KEYWORDS = [kw for kws in SECTION_HEADERS.values() for kw in (kws if isinstance(kws, list) else [kws])]
 
-def split_into_sections(text):
-    normalized_text = "\n" + text.upper()
-    pattern = r"\n(" + "|".join([sh.upper() for sh in SECTION_HEADERS]) + r")\n"
-    parts = re.split(pattern, normalized_text)
+def find_section_indices(lines):
+    indices = {}
+    for i, line in enumerate(lines):
+        l = line.lower().strip()
+        for section, keywords in SECTION_HEADERS.items():
+            for kw in (keywords if isinstance(keywords, list) else [keywords]):
+                # Match header at start of line, allow for : or - after header
+                if re.match(rf"^{re.escape(kw)}[\s:\-]*$", l):
+                    if section not in indices:
+                        indices[section] = i
+    return indices
 
-    sections = {}
-    current_section = None
+def extract_section(lines, indices, section):
+    if section not in indices:
+        return ""
+    start = indices[section] + 1
+    next_starts = [idx for idx in indices.values() if idx > indices[section]]
+    end = min(next_starts) if next_starts else len(lines)
+    section_lines = []
+    for line in lines[start:end]:
+        l = line.lower().strip()
+        # Skip lines that are section headers
+        if any(re.match(rf"^{re.escape(kw)}[\s:\-]*$", l) for kw in ALL_SECTION_KEYWORDS):
+            continue
+        section_lines.append(line)
+    return "\n".join(section_lines).strip()
 
-    for part in parts:
-        part = part.strip()
-        if part.lower() in SECTION_HEADERS:
-            current_section = part.lower()
-            sections[current_section] = ""
-        elif current_section:
-            sections[current_section] += part + "\n"
-    return sections
+def extract_name(lines):
+    # Heuristic: First non-empty line with 2-4 words, all capitalized, no digits
+    for line in lines[:10]:
+        line = line.strip()
+        if not line or any(char.isdigit() for char in line):
+            continue
+        words = line.split()
+        if 1 < len(words) <= 4 and all(w[0].isupper() for w in words if w):
+            return line
+    return ""
 
-# ---------------------------------------------
-# 3. Name Heuristic
-# ---------------------------------------------
-def is_probable_name(line):
-    if any(char.isdigit() for char in line):
-        return False
-    words = line.strip().split()
-    return 1 < len(words) <= 4 and all(word[0].isupper() for word in words if word)
+def extract_email(text):
+    match = re.search(r'[\w\.-]+@[\w\.-]+', text)
+    return match.group(0) if match else ""
 
-# ---------------------------------------------
-# 4. Parse All Resume Fields
-# ---------------------------------------------
+def extract_phone(text):
+    match = re.search(r'(\+?\d{1,3}[\s-]?)?\d{10}', text)
+    return match.group(0) if match else ""
+
+def extract_github(text):
+    match = re.search(r'(https?://)?(www\.)?github\.com/[^\s,]+', text)
+    return match.group(0) if match else ""
+
+def extract_linkedin(text):
+    match = re.search(r'(https?://)?(www\.)?linkedin\.com/in/[^\s,]+', text)
+    return match.group(0) if match else ""
+
 def parse_resume_data(text):
     data = {}
-
-    # -------- Extract Basic Info --------
     lines = [line.strip() for line in text.split('\n') if line.strip()]
-    lines = lines[:15]
-    blocklist = SECTION_HEADERS + ["linkedin", "github", "phone", "email"]
-    filtered = [line for line in lines if all(bl not in line.lower() for bl in blocklist)]
-    name = next((line for line in filtered if is_probable_name(line)), "")
-    data['name'] = name
+    indices = find_section_indices(lines)
 
-    # -------- Extract Regex Fields --------
-    data['email'] = re.search(r'[\w\.-]+@[\w\.-]+', text).group(0) if re.search(r'[\w\.-]+@[\w\.-]+', text) else ""
-    data['phone'] = re.search(r'(\+91[\s-]?)?\d{10}', text).group(0) if re.search(r'(\+91[\s-]?)?\d{10}', text) else ""
-    data['linkedin'] = re.search(r'(https?://)?(www\.)?linkedin\.com/in/[^\s]+', text).group(0) if re.search(r'(https?://)?(www\.)?linkedin\.com/in/[^\s]+', text) else ""
-    data['github'] = re.search(r'(https?://)?(www\.)?github\.com/[^\s]+', text).group(0) if re.search(r'(https?://)?(www\.)?github\.com/[^\s]+', text) else ""
+    data['name'] = extract_name(lines)
+    data['email'] = extract_email(text)
+    data['phone'] = extract_phone(text)
+    data['github'] = extract_github(text)
+    data['linkedin'] = extract_linkedin(text)
 
-    # -------- Extract Structured Sections --------
-    sections = split_into_sections(text)
+    # Extract main sections
+    data['summary'] = extract_section(lines, indices, "summary")
+    data['education'] = extract_section(lines, indices, "education")
+    data['experience'] = extract_section(lines, indices, "experience")
+    data['projects'] = extract_section(lines, indices, "projects")
 
-    # Education
-    data['education'] = sections.get("education", "").strip()
-
-    # Experience
-    data['experience'] = sections.get("experience", "").strip()
-
-    # -------- Filter & Clean Skills --------
-    raw_skills = sections.get("skills", "")
-    split_skills = re.split(r"[•\n,-]", raw_skills)
-
-    # Blacklist patterns to exclude from skills
-    blacklist_keywords = [
-        "achievement", "award", "certificate", "loyalty", "top performer",
-        "appreciation", "sbi", "ebix", "", "", "", "", "language", "additional", "miscellaneous"
-    ]
-
-    valid_skills = []
-    other_fragments = []
-
-    for item in split_skills:
-        item = item.strip()
-        if not item:
+    # Skills: process as categories and items
+    skills_text = extract_section(lines, indices, "skills")
+    skills_lines = [s.strip() for s in skills_text.split('\n') if s.strip()]
+    filtered_skills = []
+    current_category = None
+    
+    for line in skills_lines:
+        l = line.lower()
+        # Exclude lines that match responsibility headers
+        if any(l.startswith(kw) for kw in SECTION_HEADERS["responsibility"]):
             continue
-
-        if any(bad in item.lower() for bad in blacklist_keywords) or len(item) > 60 or not re.search(r'[a-zA-Z]', item):
-            other_fragments.append(item)
+            
+        # Check if line is a category header (contains a colon)
+        category_match = re.match(r'^([^:]+)\s*:\s*(.+)$', line)
+        
+        if category_match:
+            # This line has a category format: "Category: skill1, skill2, ..."
+            category = category_match.group(1).strip()
+            skills_str = category_match.group(2).strip()
+            skills = [s.strip() for s in re.split(r'[,;|]', skills_str) if s.strip()]
+            
+            # Add as a category object
+            filtered_skills.append({
+                'category': category,
+                'items': skills
+            })
+        elif ':' in line and not re.search(r'https?://', line):  # Avoid matching URLs
+            # This might be a category without skills on the same line
+            parts = line.split(':', 1)
+            category = parts[0].strip()
+            current_category = category
+            
+            # If there are skills after the colon, process them
+            if len(parts) > 1 and parts[1].strip():
+                skills = [s.strip() for s in re.split(r'[,;|]', parts[1].strip()) if s.strip()]
+                filtered_skills.append({
+                    'category': category,
+                    'items': skills
+                })
         else:
-            valid_skills.append(item)
+            # This is either a standalone skill or belongs to the current category
+            if current_category:
+                # Check if we already have this category
+                category_exists = False
+                for skill_item in filtered_skills:
+                    if isinstance(skill_item, dict) and skill_item.get('category') == current_category:
+                        # Add to existing category
+                        skill_item['items'].append(line)
+                        category_exists = True
+                        break
+                        
+                if not category_exists:
+                    # Create new category
+                    filtered_skills.append({
+                        'category': current_category,
+                        'items': [line]
+                    })
+            else:
+                # Add as standalone skill
+                filtered_skills.append(line)
+    
+    data['skills'] = filtered_skills
 
-    data['skills'] = valid_skills
+    # Others: combine certifications, achievements, responsibility, extracurricular
+    other_parts = []
+    for key in ["certifications", "achievements", "responsibility", "extracurricular"]:
+        section_text = extract_section(lines, indices, key)
+        if section_text:
+            other_parts.append(f"{key.capitalize()}:\n{section_text}")
 
-    # -------- Extract Other Sections + Orphan Fragments --------
-    others = []
-    for key in OTHER_SECTIONS:
-        content = sections.get(key, "").strip()
-        if content:
-            others.append(f"**{key.capitalize()}**:\n{content}")
-
-    if other_fragments:
-        others.append(f"**Miscellaneous from Skills**:\n" + "\n".join(other_fragments))
-
-    data['others'] = "\n\n".join(others)
+    data['others'] = "\n\n".join(other_parts)
 
     return data

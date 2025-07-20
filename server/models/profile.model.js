@@ -7,11 +7,14 @@ const ProfileSchema = new mongoose.Schema({
   phone: String,
   github: String,
   linkedin: String,
-  skills: [String],
-  education: String,
+  skills: [mongoose.Schema.Types.Mixed], // Support both string skills and categorized skills objects
+  summary: String,     
+  projects: String, 
+  education: [mongoose.Schema.Types.Mixed], // Support both string education and categorized education objects
   experience: String,
   others: String,
-  selectedTemplate: { type: String, default: "default" }
+  certificates: [mongoose.Schema.Types.Mixed], // Support certificates with links
+  selectedTemplate: { type: String, default: "Template2" }
 }, { timestamps: true });
 
 module.exports = mongoose.model("Profile", ProfileSchema);

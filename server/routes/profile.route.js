@@ -1,3 +1,4 @@
+// server/routes/profile.route.js
 const express = require("express");
 const router = express.Router();
 const verifyToken = require("../middleware/verifyToken");
@@ -14,18 +15,35 @@ router.get("/", verifyToken, async (req, res) => {
   }
 });
 
-// POST (create/update) user profile
+// POST/UPDATE profile
 router.post("/", verifyToken, async (req, res) => {
+  const user = req.user;
+  let {
+    name, email, phone, github, linkedin,
+    skills, education, experience, summary, projects, others, certificates,
+    selectedTemplate
+  } = req.body;
+
+  // Skills should already be processed on the client side
+  // No need to process skills here as they're already in the correct format
+
   try {
-    const update = req.body;
-    update.skills = update.skills?.split(",").map(skill => skill.trim()); // convert string → array
-    const profile = await Profile.findOneAndUpdate(
-      { uid: req.user.uid },
-      { ...update, uid: req.user.uid },
-      { new: true, upsert: true }
+    const profileData = {
+      name, email, phone, github, linkedin,
+      skills,
+      education, experience, summary, projects, others, certificates,
+      selectedTemplate,
+    };
+
+    const updated = await Profile.findOneAndUpdate(
+      { uid: user.uid },
+      { uid: user.uid, ...profileData },
+      { upsert: true, new: true }
     );
-    res.json({ message: "Profile saved successfully", profile });
+
+    res.json({ message: "Profile updated", profile: updated });
   } catch (err) {
+    console.error("❌ Save error:", err);
     res.status(500).json({ error: "Failed to save profile" });
   }
 });
