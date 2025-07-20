@@ -174,10 +174,41 @@ export default function ProfilePage() {
             }
           }),
         // Process projects to extract title, description, GitHub and live links
-        projects: formData.projects.split('\n')
-          .map(line => line.trim())
-          .filter(Boolean)
-          .join('\n'),
+        projects: (() => {
+          // If projects is already an array, return it as is
+          if (Array.isArray(formData.projects)) {
+            return formData.projects;
+          }
+          
+          // If projects is a string, process it
+          if (typeof formData.projects === 'string') {
+            return formData.projects.split('\n')
+              .map(line => line.trim())
+              .filter(Boolean)
+              .map(line => {
+                // Check if line has pipe format (Project #: Title | Description | GitHub | Demo)
+                if (line.includes('|')) {
+                  // Remove any project numbering
+                  const cleanLine = line.replace(/^(\d+\.\s|Project\s+\d+:|#\d+\s)/i, '').trim();
+                  const parts = cleanLine.split('|').map(part => part.trim());
+                  if (parts.length >= 2) {
+                    return {
+                      title: parts[0] || '',
+                      description: parts[1] || '',
+                      github: parts[2] || null,
+                      demo: parts[3] || null,
+                      technologies: []
+                    };
+                  }
+                }
+                // Return the line as is if it doesn't match the format
+                return line;
+              });
+          }
+          
+          // If projects is neither an array nor a string, return an empty array
+          return [];
+        })(),
         // Process education with categories
         education: (() => {
           // First, group lines by category

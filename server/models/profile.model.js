@@ -9,7 +9,7 @@ const ProfileSchema = new mongoose.Schema({
   linkedin: String,
   skills: [mongoose.Schema.Types.Mixed], // Support both string skills and categorized skills objects
   summary: String,     
-  projects: String, 
+  projects: [mongoose.Schema.Types.Mixed], // Support both string projects and structured project objects 
   education: [mongoose.Schema.Types.Mixed], // Support both string education and categorized education objects
   experience: String,
   others: String,
